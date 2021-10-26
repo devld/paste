@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Paste!</title>
+  <style>
+    .content-txt, .content-html {
+      white-space: pre;
+    }
+
+    .create-form, .content {
+      display: none;
+    }
+
+    .page-show .content {
+      display: block;
+    }
+
+    .page-add .create-form {
+      display: block;
+    }
+
+    body {
+      padding-top: 60px;
+    }
+
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 50px;
+      padding: 0 20vw;
+      display: flex;
+      align-items: center;
+      background-color: #FFF;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: bold;
+      font-style: italic;
+      user-select: none;
+      color: #ccc;
+      margin-right: 20px;
+      text-decoration: none;
+    }
+
+    .query-form {
+      display: flex;
+      align-items: stretch;
+    }
+
+    .query-form .form-item-input {
+      border: solid 1px #eee;
+      border-right: none;
+      margin: 0;
+    }
+
+    .create-form, .content {
+      margin: 0 auto;
+      width: 60vw;
+      max-width: 800px;
+    }
+
+    @media screen and (max-width: 900px) {
+      .header {
+        padding: 0 5vw;
+      }
+
+      .create-form, .content {
+        width: 90vw;
+      }
+    }
+
+    .form-item-f-content {
+      min-height: 200px;
+    }
+
+    .form-item {
+      display: flex;
+      align-items: stretch;
+      border: solid 1px #eee;
+      margin-bottom: 10px;
+    }
+
+    .form-item-inline {
+      display: inline-flex;
+      margin-right: 10px;
+    }
+
+    .form-item-label {
+      padding: 8px;
+      border-right: solid 1px #eee;
+    }
+
+    .form-item-suffix {
+      padding: 8px;
+    }
+
+    .form-item-label, .form-item-suffix {
+      color: #666;
+      user-select: none;
+    }
+
+    .form-item-input {
+      padding: 8px;
+      flex: 1;
+      border: none;
+      outline: none;
+      background: none;
+    }
+
+    .form-item-f-expires .form-item-input {
+      width: 70px;
+      text-align: center;
+    }
+
+    .form-item-f-views .form-item-input {
+      width: 70px;
+      text-align: center;
+    }
+
+    button {
+      border: none;
+      background-color: #66CCFF;
+      color: #FFF;
+      padding: 8px 20px;
+      cursor: pointer;
+    }
+  </style>
+  <script src="https://cdn.bootcdn.net/ajax/libs/dompurify/2.3.0/purify.min.js"></script>
+  <script src="https://cdn.bootcdn.net/ajax/libs/marked/2.1.3/marked.min.js"></script>
+</head>
+<body>
+<header class="header">
+  <a id="logo" class="logo" href="#">Paste!</a>
+  <form id="queryForm" class="query-form" action="">
+    <input id="qCode" class="form-item-input" type="text" placeholder="Code" autocomplete="off">
+    <button type="submit" class="query-submit">Go</button>
+  </form>
+</header>
+
+<article id="content" class="content"></article>
+
+<form id="form" class="create-form" action="">
+  <div class="form-item form-item-inline form-item-f-code">
+    <label class="form-item-label" for="fCode">Code: </label>
+    <input id="fCode" class="form-item-input" type="text" placeholder="生成..." autocomplete="off">
+  </div>
+  <div class="form-item form-item-inline form-item-f-type">
+    <label class="form-item-label" for="fContentType">类型: </label>
+    <select id="fContentType" class="form-item-input">
+      <option value="">文本</option>
+      <option value="html">HTML</option>
+      <option value="md">Markdown</option>
+    </select>
+  </div>
+  <div class="form-item form-item-f-content">
+    <label class="form-item-label" for="fContent">内容: </label>
+    <textarea id="fContent" class="form-item-input" placeholder="写点什么..."></textarea>
+  </div>
+  <div class="form-item form-item-inline form-item-f-password">
+    <label class="form-item-label" for="fPassword">密码: </label>
+    <input id="fPassword" class="form-item-input" type="password" autocomplete="new-password" placeholder="留空无密码">
+  </div>
+  <div class="form-item form-item-inline form-item-f-views">
+    <label class="form-item-label" for="fRemainingViews">查看次数: </label>
+    <input id="fRemainingViews" class="form-item-input" type="number" placeholder="不限">
+  </div>
+  <div class="form-item form-item-inline form-item-f-expires">
+    <label class="form-item-label" for="fExpiresIn">过期时间: </label>
+    <input id="fExpiresIn" class="form-item-input" type="number" placeholder="不限">
+    <span class="form-item-suffix">分钟</span>
+  </div>
+  <div class="form-item-submit">
+    <button class="form-item-button" type="submit">保存</button>
+  </div>
+</form>
+
+<script>
+  (() => {
+    DOMTokenList.prototype.removePattern = function (pattern) {
+      const removed = []
+      for (const c of this) {
+        if (c.match(pattern)) removed.push(c)
+      }
+      removed.forEach(c => this.remove(c))
+      return this
+    }
+
+    const queryForm = document.getElementById('queryForm')
+    const qCode = queryForm.querySelector('#qCode')
+
+    const content = document.getElementById('content')
+    const form = document.getElementById('form')
+
+    const formInputs = Array.from(form.querySelectorAll('.form-item-input'))
+      .filter(el => el.id.startsWith('f'))
+      .reduce((o, el) => {
+        el.dataset.key = el.id.charAt(1).toLowerCase() + el.id.substr(2)
+        o[el.dataset.key] = el
+        return o
+      }, {})
+    Object.defineProperty(formInputs, 'val', {
+      enumerable: false,
+      get() {
+        return Object.entries(this).reduce((o, e) => {
+          o[e[0]] = e[1].value
+          return o
+        }, {})
+      },
+      set(v) {
+        if (!v) return
+        Object.keys(this).forEach(key => {
+          this[key].value = v[key] || ''
+        })
+      }
+    })
+
+    async function get(code, password) {
+      const res = await fetch(buildPath('/' + code) + '?json' + (password ? '&p=' + encodeURIComponent(password) : ''))
+      if (res.status !== 200) throw new PasteError(res.status, await res.text())
+      return await res.json()
+    }
+
+    async function add(paste) {
+      const res = await fetch(buildPath('/'), {
+        method: 'post',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(paste),
+      })
+      if (res.status !== 201) throw new PasteError(res.status, await res.text())
+      return await res.json()
+    }
+
+    function buildPath(path) {
+      return (location.pathname + path).replaceAll(/\/{2,}/g, '/')
+    }
+
+    const getCurrentCode = () => location.hash.substr(1)
+    const setCurrentCode = (code) => {
+      location.hash = code
+      qCode.value = code
+    }
+
+    class PasteError extends Error {
+      constructor(status, message) {
+        super(message)
+        this.status = status
+      }
+    }
+
+    const typeHandlers = {
+      '': (p) => setContent(p.content, false, 'txt'),
+      'html': (p) => setContent(p.content, true, 'html'),
+      'md': (p) => setContent(marked(p.content), true, 'html', 'md')
+    }
+
+    queryForm.addEventListener('submit', (e) => {
+      e.preventDefault()
+      const code = qCode.value.trim()
+      const currentCode = getCurrentCode()
+      if (currentCode !== code) setCurrentCode(code)
+      else routeChanged()
+      return false
+    })
+    form.addEventListener('submit', (e) => {
+      e.preventDefault()
+      submitPaste(formInputs.val)
+      return false
+    })
+
+    function routeChanged() {
+      const code = getCurrentCode()
+      if (code) showPaste(code)
+      else showAddPage()
+      setCurrentCode(code)
+    }
+
+    window.addEventListener('hashchange', routeChanged)
+    routeChanged()
+
+    function setContent(contentText, html, ...type) {
+      content[html ? 'innerHTML' : 'innerText'] = (html ? DOMPurify.sanitize(contentText) : contentText) || ''
+      content.classList.removePattern(/^content-.+$/).add(...type.map(e => 'content-' + e))
+    }
+
+    async function submitPaste(val) {
+      val = {
+        ...val,
+        expiredAt: val.expiresIn ? new Date(Date.now() + +val.expiresIn * 60 * 1000) : -1,
+        remainingViews: +val.remainingViews || -1,
+        expiresIn: undefined
+      }
+      let paste
+      try {
+        paste = await add(val)
+      } catch (e) {
+        return showError(e)
+      }
+      formInputs.val = {}
+      handlePaste(paste)
+    }
+
+    function showAddPage(code) {
+      setContent()
+      formInputs.val = {code}
+      showPage('add')
+    }
+
+    async function showPaste(code, password) {
+      if (!code) throw Error()
+      let paste
+      try {
+        paste = await get(code, password)
+      } catch (e) {
+        if (e.status === 403) {
+          const password = prompt('请输入密码')
+          if (password) {
+            await showPaste(code, password)
+            return
+          } else return
+        }
+        return showError(e)
+      }
+      handlePaste(paste)
+    }
+
+    function handlePaste(paste) {
+      setCurrentCode(paste.code)
+      qCode.value = paste.code
+      const handler = typeHandlers[paste.contentType] || typeHandlers['']
+      handler(paste)
+      showPage('show')
+    }
+
+    const errMsg = {
+      400: '无效的输入',
+      403: '密码错误',
+      404: 'Code 不存在',
+      409: 'Code 已存在',
+      500: '服务器错误'
+    }
+
+    function showError(e) {
+      alert(errMsg[e.status] || e.message)
+    }
+
+    function showPage(...page) {
+      document.body.classList.removePattern(/^page-.+$/).add(...page.map(e => 'page-' + e))
+    }
+  })()
+</script>
+</body>
+</html>
