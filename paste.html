@@ -157,6 +157,7 @@
       <option value="">文本</option>
       <option value="html">HTML</option>
       <option value="md">Markdown</option>
+      <option value="url">URL</option>
     </select>
   </div>
   <div class="form-item form-item-f-content">
@@ -235,7 +236,7 @@
         },
         body: JSON.stringify(paste),
       })
-      if (res.status !== 201) throw new PasteError(res.status, await res.text())
+      if (res.status !== 200) throw new PasteError(res.status, await res.text())
       return await res.json()
     }
 
@@ -259,7 +260,17 @@
     const typeHandlers = {
       '': (p) => setContent(p.content, false, 'txt'),
       'html': (p) => setContent(p.content, true, 'html'),
-      'md': (p) => setContent(marked(p.content), true, 'html', 'md')
+      'md': (p) => setContent(marked(p.content), true, 'html', 'md'),
+      'url': (p) => {
+        const content = p.content.trim()
+        const isValidURL = /^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&/=]*)$/i.test(content)
+        if (isValidURL) {
+          setContent('<p style="text-align: center;">' +
+            '<a rel="nofollow noopener" href="' + content + '">' + content + '</a>' +
+            '</p>',
+            true, 'html', 'url')
+        } else typeHandlers[''](p)
+      }
     }
 
     queryForm.addEventListener('submit', (e) => {

@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -281,7 +282,7 @@ func (p *PasteHttpHandler) handleGet(w http.ResponseWriter, req *http.Request) {
 		writePasteError(w, e)
 		return
 	}
-	_ = writePaste(w, paste, req.URL.Query().Has("json"), 200)
+	_ = writePaste(w, paste, req.URL.Query().Has("json"))
 }
 
 func (p *PasteHttpHandler) handleAdd(w http.ResponseWriter, req *http.Request) {
@@ -316,7 +317,7 @@ func (p *PasteHttpHandler) handleAdd(w http.ResponseWriter, req *http.Request) {
 		writePasteError(w, e)
 		return
 	}
-	_ = writePaste(w, added, true, 201)
+	_ = writePaste(w, added, true)
 }
 
 func (p *PasteHttpHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -328,6 +329,10 @@ func (p *PasteHttpHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	default:
 		w.WriteHeader(400)
 	}
+}
+
+func init() {
+	initTypeHandlers()
 }
 
 func main() {
@@ -393,12 +398,30 @@ func (r PasteOpError) Status() int {
 	return r.status
 }
 
-func writePaste(w http.ResponseWriter, paste Paste, outputJson bool, status int) error {
+var pastesTypeHandlers map[string]func(w http.ResponseWriter, paste Paste) error
+
+func initTypeHandlers() {
+	pastesTypeHandlers = map[string]func(w http.ResponseWriter, paste Paste) error{
+		"": func(w http.ResponseWriter, paste Paste) error {
+			_, e := w.Write([]byte(paste.Content))
+			return e
+		},
+		"url": func(w http.ResponseWriter, paste Paste) error {
+			content := strings.TrimSpace(paste.Content)
+			if !urlRegexp.MatchString(content) {
+				return pastesTypeHandlers[""](w, paste)
+			}
+			w.Header().Set("Location", content)
+			w.WriteHeader(302)
+			return nil
+		},
+	}
+}
+
+func writePaste(w http.ResponseWriter, paste Paste, outputJson bool) error {
 	paste.CreatedBy = ""
 	paste.Password = ""
 
-	var body []byte
-	contentType := ""
 	if outputJson {
 		jsonBody, e := json.Marshal(paste)
 		if e != nil {
@@ -406,16 +429,15 @@ func writePaste(w http.ResponseWriter, paste Paste, outputJson bool, status int)
 			w.WriteHeader(500)
 			return e
 		}
-		body = jsonBody
-		contentType = "application/json; charset=utf-8"
-	} else {
-		body = []byte(paste.Content)
-		contentType = "text/plain; charset=utf-8"
+		w.Header().Add("Content-Type", "application/json; charset=utf-8")
+		_, e = w.Write(jsonBody)
+		return e
 	}
-	w.Header().Add("Content-Type", contentType)
-	w.WriteHeader(status)
-	_, e := w.Write(body)
-	return e
+	handler, ok := pastesTypeHandlers[paste.ContentType]
+	if !ok {
+		handler = pastesTypeHandlers[""]
+	}
+	return handler(w, paste)
 }
 
 func writePasteError(w http.ResponseWriter, e error) {
@@ -465,3 +487,5 @@ func getHTML() []byte {
 
 //go:embed paste.html
 var webPageHTMLBytes []byte
+
+var urlRegexp = regexp.MustCompile("^https?://(www\\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_+.~#?&/=]*)$")
