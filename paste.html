@@ -6,10 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Paste!</title>
   <style>
-    .content-txt, .content-html {
-      white-space: pre;
-    }
-
     * {
       box-sizing: border-box;
     }
@@ -20,6 +16,7 @@
 
     .create-form, .content {
       display: none;
+      margin: 0 auto 40px;
       padding: 16px;
       background-color: #FFF;
       box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
@@ -74,7 +71,6 @@
     }
 
     .create-form, .content {
-      margin: 0 auto;
       width: 60vw;
       max-width: 800px;
     }
@@ -319,7 +315,7 @@
     async function submitPaste(val) {
       val = {
         ...val,
-        expiredAt: val.expiresIn ? new Date(Date.now() + +val.expiresIn * 60 * 1000) : -1,
+        expiredAt: val.expiresIn ? new Date(Date.now() + +val.expiresIn * 60 * 1000).getTime() : -1,
         remainingViews: +val.remainingViews || -1,
         expiresIn: undefined
       }
